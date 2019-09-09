@@ -129,4 +129,6 @@ if __name__ == '__main__':
     for epoch in range(10):
         for batch in tqdm(train_dl):
             pass
+            # inpect padding num distribution
+            # use `pack_padded_sequence`
     show_time('[Info] Finished loading')

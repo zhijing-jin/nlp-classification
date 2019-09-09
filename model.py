@@ -117,14 +117,14 @@ class LSTMClassifier(nn.Module):
 
         lstm_output, (final_h, final_c) = self.lstm(inp)
 
-        outputs = []
-        for i in range(batch_size):
-            cur_emb = inp[i:i + 1]  # .view(1, inp.size(1), inp.size(2))
-
-            o, hidden = self.lstm(cur_emb) if i == 0 else self.lstm(cur_emb, hidden)
-            import pdb;pdb.set_trace()
-            outputs += [o.unsqueeze(0)]
-        outputs = torch.cat(outputs, dim=0)
+        # outputs = []
+        # for i in range(seq_len):
+        #     cur_emb = inp[i:i + 1]  # .view(1, inp.size(1), inp.size(2))
+        #
+        #     o, hidden = self.lstm(cur_emb) if i == 0 else self.lstm(cur_emb, hidden)
+        #     import pdb;pdb.set_trace()
+        #     outputs += [o.unsqueeze(0)]
+        # outputs = torch.cat(outputs, dim=0)
 
         lstm_output = self.lstm_dropout(lstm_output)
 
