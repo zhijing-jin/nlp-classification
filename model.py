@@ -1,3 +1,4 @@
+from itertools import chain
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -21,8 +22,8 @@ class LSTMClassifier(nn.Module):
         self.lstm_combine = lstm_combine
 
         self.embedding_layer = nn.Embedding(*emb_vectors.shape)
-        self.embedding_layer.from_pretrained(emb_vectors,
-                                             padding_idx=1)  # pad=1 in torchtext
+        self.embedding_layer.from_pretrained(emb_vectors, padding_idx=1)
+        # pad=1 in torchtext; embedding weights trainable
         self.embedding_dropout = nn.Dropout(p=emb_dropout)
 
         self.lstm = nn.LSTM(emb_dim, lstm_dir_dim,
@@ -41,6 +42,9 @@ class LSTMClassifier(nn.Module):
         self.label = nn.Linear(lstm_dim, n_classes)
         self.crit = crit
 
+
+        self._weights_init()
+
         self.opts = {
             'vocab_size': vocab_size,
             'emb_dim': emb_dim,
@@ -55,6 +59,12 @@ class LSTMClassifier(nn.Module):
             'n_classes': n_classes,
             'crit': crit,
         }
+
+    def _weights_init(self):
+        parameters = [self.lstm.all_weights] + \
+                     chain.from_iterable([(layer.weight, layer.bias)
+                                          for layer in self.linear_layers])
+        for p in parameters: torch.nn.init.xavier_uniform(p)
 
     def attention_net(self, lstm_output, final_state):
         """
@@ -139,7 +149,6 @@ class LSTMClassifier(nn.Module):
         logits = self.label(output)
         return logits
 
-
     def forward_normal_attention(self):
         batch_size = len(input)
 
@@ -166,7 +175,6 @@ class LSTMClassifier(nn.Module):
         logits = self.label(output)
         return logits
 
-
     def forward_normal_lstm(self):
         inp = self.embedding_layer(input)
         inp = self.embedding_dropout(inp)
@@ -184,7 +192,6 @@ class LSTMClassifier(nn.Module):
         logits = self.label(output)
         return logits
 
-
     def loss(self, input, target):
         logits = self.forward(input)
         logits_flat = logits.view(-1, logits.size(-1))
@@ -192,14 +199,12 @@ class LSTMClassifier(nn.Module):
         loss = self.crit(logits_flat, target_flat)  # mean_score per batch
         return loss
 
-
     def predict(self, input):
         logits = self.forward(input)
         logits[:, :2] = float('-inf')
         preds = logits.max(dim=-1)[1]
         preds = preds.detach().cpu().numpy().tolist()
         return preds
-
 
     def loss_n_acc(self, input, target):
         logits = self.forward(input)

@@ -48,7 +48,7 @@ class Validator:
             }
             torch.save(checkpoint, self.save_model_fname)
 
-    def write_summary(self, epoch):
+    def write_summary(self, epoch=0, summ=None):
         def _format_value(v):
             if isinstance(v, float):
                 return '{:.4f}'.format(v)
@@ -61,7 +61,7 @@ class Validator:
             'Eval': '(e{:02d},{})'.format(epoch, self.valid_or_test),
             'avg_error': self.avg_error,
             'acc': self.acc,
-        }
+        } if summ is None else summ
         summ = {k: _format_value(v) for k, v in summ.items()}
         writeout = json.dumps(summ)
 

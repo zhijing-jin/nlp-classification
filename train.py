@@ -18,8 +18,8 @@ def clip_gradient(model, clip_value):
 
 def train(proc_id, n_gpus, model=None, train_dl=None, validator=None,
           tester=None, epochs=20, lr=0.001, log_every_n_examples=1):
-    opt = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
-                          lr=lr, momentum=0.9)
+    # opt = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
+    #                       lr=lr, momentum=0.9)
     opt = torch.optim.Adadelta(
         filter(lambda p: p.requires_grad, model.parameters()), lr=1.0, rho=0.9,
         eps=1e-6, weight_decay=1e-5)
@@ -60,7 +60,14 @@ def train(proc_id, n_gpus, model=None, train_dl=None, validator=None,
         validator.evaluate(model, epoch)
         # tester.evaluate(model, epoch)
         if proc_id == 0:
-            validator.write_summary(epoch)
+            validator.write_summary(epoch=epoch)
+            summ = {
+                'Eval': '(e{:02d},train)'.format(epoch),
+                'avg_error': total_loss / cnt,
+                'acc': n_correct / cnt,
+            }
+            validator.write_summary(summ=summ)
+
             # tester.write_summary(epoch)
 
 
