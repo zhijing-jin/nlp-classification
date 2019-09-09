@@ -12,6 +12,7 @@ def get_combinations():
     # lstm_combines = ['add', 'concat']
     n_linears = [1, 2, 3]
     linear_dropouts = [0.1, 0.3, 0.5, 0.7]
+    # wd
 
     choices = [emb_dropouts, lstm_n_layers, lstm_dropouts, lstm_dims, n_linears,
                linear_dropouts]

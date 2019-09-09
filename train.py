@@ -2,7 +2,7 @@ from __future__ import division, print_function
 from tqdm import tqdm
 import torch
 
-from utils import shell
+from utils import shell, init_weights
 
 from get_args import setup, dynamic_setup, model_setup, clean_up
 from dataloader import Dataset
@@ -137,6 +137,7 @@ def run(proc_id, n_gpus, devices, args):
                            lstm_combine=args.lstm_combine,
                            linear_dropout=args.linear_dropout,
                            n_linear=args.n_linear, n_classes=args.n_classes)
+    model.apply(init_weights)
     model = model.to(device)
     args = model_setup(proc_id, model, args)
 

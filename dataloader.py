@@ -17,7 +17,7 @@ class Dataset:
         tokenize = lambda x: x.split() if preprocessed else 'spacy'
 
         INPUT = Field(sequential=True, batch_first=True, tokenize=tokenize,
-                      lower=lower,
+                      # lower=lower,
                       # include_lengths=True,
                       )
         # TGT = Field(sequential=False, dtype=torch.long, batch_first=True,
@@ -44,8 +44,9 @@ class Dataset:
         INPUT.build_vocab(train_ds, max_size=vocab_max_size,
                           vectors=GloVe(name='6B', dim=emb_dim),
                           unk_init=torch.Tensor.normal_, )
+        # load_vocab(hard_dosk) like opennmt
         # emb_dim = {50, 100}
-        # "glove.6B.{}d".format(emb_dim)
+        # "glove.6B.{}d".format(emb_dim) #Elmo
         TGT.build_vocab(train_ds, valid_ds, test_ds)
 
         self.INPUT = INPUT

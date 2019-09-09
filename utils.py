@@ -2,6 +2,7 @@ from __future__ import division, print_function, unicode_literals
 
 import sys
 import os.path
+from torch import nn
 
 
 def fwrite(new_doc, path, mode='w', no_overwrite=False):
@@ -17,11 +18,12 @@ def fwrite(new_doc, path, mode='w', no_overwrite=False):
     with open(path, mode) as f:
         f.write(new_doc)
 
+
 def show_time(what_happens='', cat_server=False, printout=True):
     import datetime
 
     disp = '⏰ Time: ' + \
-        datetime.datetime.now().strftime('%m%d%H%M-%S')
+           datetime.datetime.now().strftime('%m%d%H%M-%S')
     disp = disp + '\t' + what_happens if what_happens else disp
     if printout:
         print(disp)
@@ -42,6 +44,7 @@ def show_time(what_happens='', cat_server=False, printout=True):
             hostname = hostname[0]
         curr_time += hostname
     return curr_time
+
 
 def show_var(expression,
              joiner='\n', print=print):
@@ -126,3 +129,13 @@ class NLP:
         refs = [ref.split() for ref in ref_list]
         hyp = hyp.split()
         return bleu(refs, hyp, smoothing_function=smoothie)
+
+
+def init_weights(m):
+    if type(m) == nn.Linear:
+        nn.init.xavier_uniform_(m.weight)
+        m.bias.data.fill_(0.01)
+    elif type(m) == nn.LSTM:
+        for name, param in m.named_parameters():
+            if len(param.shape) > 1:
+                nn.init.xavier_uniform_(param)

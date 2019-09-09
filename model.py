@@ -42,9 +42,6 @@ class LSTMClassifier(nn.Module):
         self.label = nn.Linear(lstm_dim, n_classes)
         self.crit = crit
 
-
-        self._weights_init()
-
         self.opts = {
             'vocab_size': vocab_size,
             'emb_dim': emb_dim,
@@ -59,12 +56,6 @@ class LSTMClassifier(nn.Module):
             'n_classes': n_classes,
             'crit': crit,
         }
-
-    def _weights_init(self):
-        parameters = [self.lstm.all_weights] + \
-                     chain.from_iterable([(layer.weight, layer.bias)
-                                          for layer in self.linear_layers])
-        for p in parameters: torch.nn.init.xavier_uniform(p)
 
     def attention_net(self, lstm_output, final_state):
         """
