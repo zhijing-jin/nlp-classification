@@ -1,5 +1,4 @@
 from __future__ import division, print_function, unicode_literals
-
 import sys
 import os.path
 from torch import nn
@@ -101,6 +100,30 @@ def shell(cmd, working_directory='.', stdout=False, stderr=False):
         print("[stderr]", subp_stderr, "[end]")
 
     return subp_stdout, subp_stderr
+
+
+def set_seed(seed=0):
+    import random
+
+    if seed is None:
+        from efficiency.log import show_time
+        seed = int(show_time())
+    print("[Info] seed set to: {}".format(seed))
+
+    random.seed(seed)
+    try:
+        import numpy as np
+        np.random.seed(seed)
+    except ImportError:
+        pass
+
+    try:
+        import torch
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+    except ImportError:
+        pass
 
 
 class NLP:

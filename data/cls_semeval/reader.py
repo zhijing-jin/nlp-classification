@@ -35,10 +35,15 @@ def load_data(path):
         ent1 = sentence.split(' ENT_1_START ')[-1].split(' ENT_1_END ')[0]
         ent2 = sentence.split(' ENT_2_START ')[-1].split(' ENT_2_END ')[0]
 
+        ori_sentence = sentence.replace(' ENT_1_START', '')
+        ori_sentence = ori_sentence.replace(' ENT_1_END', '')
+        ori_sentence = ori_sentence.replace(' ENT_2_START', '')
+        ori_sentence = ori_sentence.replace(' ENT_2_END', '')
 
         data.append({
             'label': relation,
             'sentence': sentence,
+            'ori_sentence': ori_sentence,
             'ent1': ent1,
             'ent2': ent2,
             'id': id,
@@ -88,4 +93,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

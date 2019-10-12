@@ -5,17 +5,16 @@ from utils import show_time
 
 
 def get_combinations():
-    emb_dropouts = [0.1, 0.3, 0.5]
-    lstm_n_layers = [1, 2, 3]
-    lstm_dropouts = [0.1, 0.3, 0.5]
-    lstm_dims = [128, 256, 512, 1024]
+    emb_dropouts = [0.3, 0.5]
+    lstm_n_layers = [1, 2]
+    lstm_dropouts = [0.1, 0.2, 0.3]
+    lstm_dims = [256, 512, 1024]
     # lstm_combines = ['add', 'concat']
-    n_linears = [1, 2, 3]
-    linear_dropouts = [0.1, 0.3, 0.5, 0.7]
-    # wd
+    linear_dropouts = [0.3, 0.5]
+    wds = [0, 1e-6, 1e-5]
 
-    choices = [emb_dropouts, lstm_n_layers, lstm_dropouts, lstm_dims, n_linears,
-               linear_dropouts]
+    choices = [emb_dropouts, lstm_n_layers, lstm_dropouts, lstm_dims,
+               linear_dropouts, wds]
     combinations = list(product(*choices))
     return combinations
 
@@ -47,6 +46,7 @@ def get_results():
 
 def get_args():
     parser = configargparse.ArgumentParser('Options for multi-run')
+    parser.add_argument('-gpu_id', default=0, type=int, help='GPU id')
     parser.add_argument('-start_ix', default=-50, type=int,
                         help='start ix of test batches')
     parser.add_argument('-end_ix', default=None, type=int,
@@ -60,19 +60,20 @@ def main():
     args = get_args()
     if args.inspect_result: get_results(); return
 
-    combinations = get_combinations()  # 1296
+    combinations = get_combinations()  # 216
+    import pdb;pdb.set_trace()
     combination_set = combinations[args.start_ix:args.end_ix]
 
     for parameter_set in combination_set:
         uid = show_time()
-        cmd = 'python train.py -save_dir {save_dir} ' \
+        cmd = 'CUDA_VISIBLE_DEVICES="{gpu_id}" python train.py -save_dir {save_dir} ' \
               '-emb_dropout {} ' \
               '-lstm_n_layer {} ' \
               '-lstm_dropout {} ' \
               '-lstm_dim {} ' \
-              '-n_linear {} ' \
               '-linear_dropout {} ' \
-            .format(save_dir=uid, *parameter_set)
+              '-weight_decay {} ' \
+            .format(gpu_id=args.gpu_id, save_dir=uid, *parameter_set)
         os.system(cmd)
 
 

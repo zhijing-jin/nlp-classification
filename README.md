@@ -2,13 +2,16 @@ This is a framework for text classification by deep learning.
 
 This branch is for tuning on Relation Extraction Attention-Based BiLSTM.
 ### Datasets
-- Relation Extraction - Att-BiLSTM
+- Relation Extraction - Att-BiLSTM (69.85; if new format: 55.46%)
 
 ```bash
 python train.py \
--data_sizes 5 5 5 -batch_size 4 -verbose
-
+-lower \
+-data_dir data/pubmed
 -data_dir ~/proj/1908_prac_toxic/data/yelp/ \
+
+-data_sizes 5 5 5 -batch_size 4 -verbose \
+-data_dir data/pubmed -train_fname data.csv
 
 ```
 
@@ -29,9 +32,16 @@ python preprocess.py
 
 ### Train and Tune
 ```bash
-python train.py
+python train.py \
+-data_dir data/webnlg \
 ```
-- Get some feeling of how the loss decreases
 - 20190909 run: 71.2% on semeval
+
+### Evaluate
+```bash
+python train.py -load_model 'tmp/model' \
+-data_dir data/webnlg \
+
+```
 
 

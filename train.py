@@ -1,38 +1,34 @@
 from __future__ import division, print_function
 from tqdm import tqdm
 import torch
+from torch import nn
 
-from utils import shell, init_weights
-
-from get_args import setup, dynamic_setup, model_setup, clean_up
+from get_args import setup, model_setup, clean_up
 from dataloader import Dataset
 from model import LSTMClassifier
 from evaluate import Validator, Predictor
-
-
-def clip_gradient(model, clip_value):
-    params = list(filter(lambda p: p.grad is not None, model.parameters()))
-    for p in params:
-        p.grad.data.clamp_(-clip_value, clip_value)
+from utils import shell, init_weights, set_seed
 
 
 def train(proc_id, n_gpus, model=None, train_dl=None, validator=None,
-          tester=None, epochs=20, lr=0.001, log_every_n_examples=1):
+          tester=None, epochs=20, lr=0.001, log_every_n_examples=1,
+          weight_decay=0, test_every_n_epochs=10):
     # opt = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
     #                       lr=lr, momentum=0.9)
     opt = torch.optim.Adadelta(
         filter(lambda p: p.requires_grad, model.parameters()), lr=1.0, rho=0.9,
-        eps=1e-6, weight_decay=1e-5)
+        eps=1e-6, weight_decay=weight_decay)
 
     for epoch in range(epochs):
         if epoch - validator.best_epoch > 10:
             return
 
         model.train()
-        pbar = tqdm(train_dl) if proc_id == 0 else train_dl
         total_loss = 0
         n_correct = 0
         cnt = 0
+        pbar = tqdm(train_dl) if proc_id == 0 else train_dl
+
         for batch in pbar:
             batch_size = len(batch.tgt)
 
@@ -51,24 +47,25 @@ def train(proc_id, n_gpus, model=None, train_dl=None, validator=None,
 
             opt.zero_grad()
             loss.backward()
-            clip_gradient(model, 1)
+            nn.utils.clip_grad_value_(
+                filter(lambda p: p.grad is not None, model.parameters()), 1)
             opt.step()
 
         if n_gpus > 1: torch.distributed.barrier()
 
         model.eval()
-        validator.evaluate(model, epoch)
-        # tester.evaluate(model, epoch)
+        if_update = validator.evaluate(model, epoch)
         if proc_id == 0:
-            validator.write_summary(epoch=epoch)
             summ = {
                 'Eval': '(e{:02d},train)'.format(epoch),
-                'avg_error': total_loss / cnt,
+                'loss': total_loss / cnt,
                 'acc': n_correct / cnt,
             }
             validator.write_summary(summ=summ)
-
-            # tester.write_summary(epoch)
+            validator.write_summary(epoch=epoch)
+            if epochs % test_every_n_epochs == 0 and if_update:
+                tester.evaluate(model, epoch)
+                tester.write_summary(epoch)
 
 
 def bookkeep(predictor, validator, tester, args, INPUT_field):
@@ -77,15 +74,17 @@ def bookkeep(predictor, validator, tester, args, INPUT_field):
     predictor.pred_sent(INPUT_field)
 
     save_model_fname = validator.save_model_fname + '.e{:02d}.loss{:.4f}.torch'.format(
-        validator.best_epoch, validator.best_error)
-    cmd = 'cp {} {}'.format(validator.save_model_fname, save_model_fname)
+        validator.best_epoch, validator.best_loss)
+    cmd = 'touch {}'.format(save_model_fname)
     shell(cmd)
 
     clean_up(args)
 
 
 def run(proc_id, n_gpus, devices, args):
+    set_seed(args.seed)
     dev_id = devices[proc_id]
+
     if n_gpus > 1:
         dist_init_method = 'tcp://{master_ip}:{master_port}'.format(
             master_ip='127.0.0.1', master_port=args.tcp_port)
@@ -105,8 +104,6 @@ def run(proc_id, n_gpus, devices, args):
         dataset.get_dataloader(proc_id=proc_id, n_gpus=n_gpus, device=device,
                                batch_size=args.batch_size)
 
-    args = dynamic_setup(args, dataset)
-
     validator = Validator(dataloader=valid_dl, save_dir=args.save_dir,
                           save_log_fname=args.save_log_fname,
                           save_model_fname=args.save_model_fname,
@@ -121,10 +118,10 @@ def run(proc_id, n_gpus, devices, args):
 
     if args.load_model:
         predictor.use_pretrained_model(args.load_model, device=device)
-        import pdb;
-        pdb.set_trace()
-
+        tester.evaluate(predictor.model, predictor.epoch)
+        tester.write_summary(epoch=predictor.epoch)
         predictor.pred_sent(dataset.INPUT)
+
         tester.final_evaluate(predictor.model)
 
         return
@@ -136,13 +133,16 @@ def run(proc_id, n_gpus, devices, args):
                            lstm_dropout=args.lstm_dropout,
                            lstm_combine=args.lstm_combine,
                            linear_dropout=args.linear_dropout,
-                           n_linear=args.n_linear, n_classes=args.n_classes)
-    model.apply(init_weights)
+                           n_linear=args.n_linear,
+                           n_classes=len(dataset.TGT.vocab))
+    if args.init_xavier: model.apply(init_weights)
     model = model.to(device)
     args = model_setup(proc_id, model, args)
 
     train(proc_id, n_gpus, model=model, train_dl=train_dl,
-          validator=validator, tester=tester, epochs=args.epochs, lr=args.lr)
+          validator=validator, tester=tester, epochs=args.epochs, lr=args.lr,
+          weight_decay=args.weight_decay,
+          test_every_n_epochs=args.test_every_n_epochs)
 
     if proc_id == 0:
         predictor.use_pretrained_model(args.save_model_fname, device=device)

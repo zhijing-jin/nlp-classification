@@ -1,4 +1,3 @@
-from itertools import chain
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -10,9 +9,9 @@ class LSTMClassifier(nn.Module):
                  lstm_dim=256, lstm_n_layer=2, lstm_dropout=0.3,
                  bidirectional=True, lstm_combine='add',
                  n_linear=2, linear_dropout=0.5, n_classes=1,
-                 crit=nn.CrossEntropyLoss()):
+                 crit=nn.CrossEntropyLoss() ):
         super().__init__()
-        vocab_size, emb_dim = emb_vectors.shape
+        if emb_vectors is not None: vocab_size, emb_dim = emb_vectors.shape
         n_dirs = bidirectional + 1
         lstm_dir_dim = lstm_dim // n_dirs if lstm_combine == 'concat' else lstm_dim
 
@@ -125,6 +124,7 @@ class LSTMClassifier(nn.Module):
         #     o, hidden = self.lstm(cur_emb) if i == 0 else self.lstm(cur_emb, hidden)
         #     import pdb;pdb.set_trace()
         #     outputs += [o.unsqueeze(0)]
+        #
         # outputs = torch.cat(outputs, dim=0)
 
         lstm_output = self.lstm_dropout(lstm_output)
@@ -187,7 +187,10 @@ class LSTMClassifier(nn.Module):
         logits = self.forward(input)
         logits_flat = logits.view(-1, logits.size(-1))
         target_flat = target.view(-1)
-        loss = self.crit(logits_flat, target_flat)  # mean_score per batch
+        try:
+            loss = self.crit(logits_flat, target_flat)  # mean_score per batch
+        except:
+            import pdb;pdb.set_trace()
         return loss
 
     def predict(self, input):
@@ -201,7 +204,10 @@ class LSTMClassifier(nn.Module):
         logits = self.forward(input)
         logits_flat = logits.view(-1, logits.size(-1))
         target_flat = target.view(-1)
-        loss = self.crit(logits_flat, target_flat)  # mean_score per batch
+        try:
+            loss = self.crit(logits_flat, target_flat)  # mean_score per batch
+        except:
+            import pdb;pdb.set_trace()
 
         pred_flat = logits_flat.max(dim=-1)[1]
         acc = (pred_flat == target_flat).sum()

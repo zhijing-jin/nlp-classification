@@ -1,8 +1,6 @@
 import os
 import sys
 import json
-import torch
-import numpy as np
 import random
 import configargparse
 from utils import show_time, fwrite, shell
@@ -13,6 +11,8 @@ def get_args():
     parser = configargparse.ArgumentParser(
         description='Args for Text Classification')
     group = parser.add_argument_group('Model Hyperparameters')
+    group.add_argument('-init_xavier', action='store_true',
+                       help='whether to use xavier normal as initiator for model weights')
     group.add_argument('-emb_dropout', default=0.3, type=float,
                        help='dropout of the embedding layer')
     group.add_argument('-emb_dim', default=100, type=int,
@@ -38,13 +38,14 @@ def get_args():
     group = parser.add_argument_group('Training Specs')
     group.add_argument('-seed', default=0, type=int, help='random seed')
     group.add_argument('-batch_size', default=10, type=int, help='batch size')
-    group.add_argument('-epochs', default=100, type=int,
+    group.add_argument('-epochs', default=50, type=int,
                        help='number of epochs to train the model')
     group.add_argument('-lr', default=0.001, type=float, help='learning rate')
-    group.add_argument('-decay', default=0.001, type=float, help='weight decay')
+    group.add_argument('-weight_decay', default=1e-5, type=float,
+                       help='weight decay')
 
     group = parser.add_argument_group('Files')
-    group.add_argument('-data_dir', default='data/re_semeval/', type=str,
+    group.add_argument('-data_dir', default='data/webnlg/', type=str,
                        help='the directory for data files')
     group.add_argument('-train_fname', default='train.csv', type=str,
                        help='training file name')
@@ -53,7 +54,7 @@ def get_args():
                        help='# samples to use in train/dev/test files')
     group.add_argument('-preprocessed', action='store_false', default=True,
                        help='whether input data is preprocessed by spacy')
-    group.add_argument('-lower', action='store_false', default=True,
+    group.add_argument('-lower', action='store_true',
                        help='whether to lowercase the input data')
 
     group.add_argument('-uid', default=cur_time, type=str,
@@ -79,6 +80,8 @@ def get_args():
     group.add_argument('-n_gpus', default=1, type=int, help='# gpus to run on')
     group.add_argument('-load_model', default='', type=str,
                        help='path to pretrained model')
+    group.add_argument('-test_every_n_epochs', default=10, type=int,
+                       help='log every n examples')
     group.add_argument('-verbose', action='store_true', default=False,
                        help='whether to show pdb.set_trace() or not')
 
@@ -100,6 +103,10 @@ def setup():
     args.save_model_fname = os.path.join(args.save_dir, args.save_model_fname)
     args.save_vocab_fname = os.path.join(args.save_dir, args.save_vocab_fname)
 
+    if 'data.csv' in args.train_fname:
+        args.data_dir, args.train_fname = \
+            split_data(save_dir=args.save_dir, data_dir=args.data_dir,
+                       train_fname=args.train_fname)
     args.data_sizes = \
         select_data(save_dir=args.save_dir, data_dir=args.data_dir,
                     train_fname=args.train_fname, data_sizes=args.data_sizes,
@@ -107,18 +114,6 @@ def setup():
 
     if not args.verbose: import pdb; pdb.set_trace = lambda: None
 
-    return args
-
-
-def dynamic_setup(args, dataset):
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
-    random.seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
-
-    vocab = dataset.INPUT.vocab
-    args.vocab_size = len(vocab)
-    args.n_classes = len(dataset.TGT.vocab)
     return args
 
 
@@ -148,6 +143,34 @@ def clean_up(args):
         shell(cmd)
 
 
+def split_data(save_dir='./tmp', data_dir='./data/wiki_person',
+               train_fname='data.csv'):
+    import os
+    import csv
+    import random
+
+    file = os.path.join(data_dir, train_fname)
+    with open(file) as f:
+        reader = csv.reader(f)
+        rows = [r for r in reader]
+    rows = [(r[0], r[1], r[1]) for r in rows]
+    random.shuffle(rows)
+
+    data = {}
+    files = ['train', 'valid', 'test']
+    n_lines = len(rows)
+    n_valid = min(n_lines // 10, 10000)
+    data['valid'] = rows[:n_valid]
+    data['test'] = rows[n_valid: 2 * n_valid]
+    data['train'] = rows[2 * n_valid:]
+    for typ in files:
+        file = os.path.join(data_dir, typ + '.csv')
+        with open(file, 'w') as f:
+            writer = csv.writer(f)
+            writer.writerows(data[typ])
+    return data_dir, 'train.csv'
+
+
 def select_data(save_dir='./tmp', data_dir='./data/wiki_person',
                 train_fname='train.csv', data_sizes=[None, None, None],
                 skip_header=True, verbose=True):
@@ -167,18 +190,17 @@ def select_data(save_dir='./tmp', data_dir='./data/wiki_person',
                                  train_fname.replace('train', file))
         save_to = os.path.join(save_dir, file + suffix)
 
+        with open(read_from) as f:
+            data = [line for line in f]
         if skip_header:
-            shell('head -1 {fin} > {fout}'.format(fin=read_from, fout=save_to))
-
-        if data_size is None:
-            cmd = "awk 'NR>=2' {fin} | shuf >> {fout}" \
-                .format(fin=read_from, fout=save_to)
+            header, body = data[:1], data[1:]
         else:
-            cmd = "awk 'NR>=2&&NR<={line_num}' {fin} | shuf | head -{data_size} >> {fout}" \
-                .format(line_num=1 + data_size, data_size=data_size,
-                        fin=read_from, fout=save_to)
+            header, body = [], data
+        random.shuffle(body)
+        data = header + body[:data_size]
 
-        shell(cmd)
+        fwrite(''.join(data), save_to)
+
         n_lines[file] = _get_num_lines(save_to)
 
     if verbose:

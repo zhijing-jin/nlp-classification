@@ -176,16 +176,18 @@ fabric.properties
 # Android studio 3.1+ serialized cache file
 .idea/caches/build_file_checksums.ser
 
-# ignore Dropbox
+# ignore Dropbox and PyCharm
 .DS_Store
 */.DS_Store
 .idea
 
 
-# ignore large data files
+# ignore large output files
 tmp*/
 outputs/
+09*
 
-
+# ignore customized files
+myREADME.md
 
 
